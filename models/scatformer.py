@@ -322,7 +322,7 @@ class Embedding(nn.Module):
                 nn.BatchNorm2d(embed_dim)
             )
         elif self.asub:
-            print("ASUB")
+            # print("ASUB")
             self.attn = attn_block(dim=in_chans, out_dim=embed_dim,
                                    resolution=resolution, act_layer=act_layer)
             patch_size = to_2tuple(patch_size)
@@ -332,7 +332,7 @@ class Embedding(nn.Module):
                                   stride=stride, padding=padding)
             self.bn = norm_layer(embed_dim) if norm_layer else nn.Identity()
         else:
-            print("ELSE")
+            # print("ELSE")
             patch_size = to_2tuple(patch_size)
             stride = to_2tuple(stride)
             padding = to_2tuple(padding)
@@ -482,7 +482,7 @@ def sformer_block(dim, index, layers,
 
 
         if index >= 2 and block_idx > layers[index] - 1 - vit_num:
-          print("AttnFNN\t block_idx", block_idx)
+        #   print("AttnFNN\t block_idx", block_idx)
           if index == 2:
                 stride = 2
           else:
@@ -498,7 +498,7 @@ def sformer_block(dim, index, layers,
           ))
           
         else:
-            print("FNN\t block_idx", block_idx)
+            # print("FNN\t block_idx", block_idx)
             blocks.append(FFN(
                 dim, pool_size=pool_size, mlp_ratio=mlp_ratio,
                 act_layer=act_layer,
@@ -517,7 +517,7 @@ class ScatFormer(nn.Module):
                 #  scat_scale=2, scat_angels=4,
                  pool_size=3,
                  norm_layer=nn.BatchNorm2d, act_layer=nn.GELU,
-                 num_classes=1000,
+                 num_classes=100,
                  down_patch_size=3, down_stride=2, down_pad=1,
                  drop_rate=0., drop_path_rate=0.,
                  use_layer_scale=True, layer_scale_init_value=1e-5,
@@ -539,7 +539,7 @@ class ScatFormer(nn.Module):
 
         network = []
         for i in range(len(layers)):
-            print(f"Layer: {i}")
+            # print(f"Layer: {i}")
             sformer_block(embed_dims[i], i, layers,
                           pool_size=pool_size, mlp_ratio=mlp_ratios,
                           act_layer=act_layer, norm_layer=norm_layer,
@@ -555,7 +555,7 @@ class ScatFormer(nn.Module):
                 break
             if downsamples[i] or embed_dims[i] != embed_dims[i + 1]:
                 # downsampling between two stages
-                print(f"downsamples: {math.ceil(resolution / (2 ** (i + 2)))}")
+                # print(f"downsamples: {math.ceil(resolution / (2 ** (i + 2)))}")
                 if i >= 2:
                     asub = True
                 else:
@@ -650,7 +650,7 @@ class ScatFormer(nn.Module):
 def _cfg(url='', **kwargs):
     return {
         'url': url,
-        'num_classes': 1000, 'input_size': (3, 224, 224), 'pool_size': None,
+        'num_classes': 100, 'input_size': (3, 224, 224), 'pool_size': None,
         'crop_pct': .95, 'interpolation': 'bicubic',
         'mean': IMAGENET_DEFAULT_MEAN, 'std': IMAGENET_DEFAULT_STD,
         'classifier': 'head',
