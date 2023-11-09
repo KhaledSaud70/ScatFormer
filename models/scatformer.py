@@ -452,20 +452,19 @@ class Embedding(nn.Module):
             patch_size = to_2tuple(patch_size)
             stride = to_2tuple(stride)
             padding = to_2tuple(padding)
-            self.proj = nn.Conv2d(
-                in_chans,
-                embed_dim,
-                kernel_size=patch_size,
-                stride=stride,
-                padding=padding,
-            )
+            # self.proj = nn.Conv2d(
+            #     in_chans,
+            #     embed_dim,
+            #     kernel_size=patch_size,
+            #     stride=stride,
+            #     padding=padding,
+            # )
 
-            # self.proj = nn.Sequential(
-            #     # Scattering2D(J=1, L=4, shape=(resolution, resolution)),
-            #     # Rearrange('b c x h w -> b (c x) h w'),
-            #     ScatLayer(biort='near_sym_b_bp', mode="zero"),
-            #     nn.Conv2d(in_chans * 7, in_chans * 7, kernel_size=3, padding=padding, groups=7),
-            #     nn.Conv2d(in_chans * 7, embed_dim, kernel_size=1))
+            self.proj = nn.Sequential(
+                ScatLayer(biort='near_sym_b_bp', mode="zero"),
+                nn.Conv2d(in_chans * 7, embed_dim, kernel_size=3, padding=padding)
+                )
+
             self.norm = norm_layer(embed_dim) if norm_layer else nn.Identity()
 
     def forward(self, x):
