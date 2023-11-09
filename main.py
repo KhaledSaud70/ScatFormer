@@ -384,7 +384,9 @@ def main(args):
         )
 
         lr_scheduler.step(epoch)
-
+        # log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
+        #                  'epoch': epoch,
+        #                  'n_parameters': n_parameters}
         if args.output_dir:
             checkpoint_paths = [output_dir / 'checkpoint.pth']
             for checkpoint_path in checkpoint_paths:

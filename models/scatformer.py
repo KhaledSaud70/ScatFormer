@@ -14,7 +14,7 @@ from timm.models.layers import to_2tuple
 
 # from kymatio.torch import Scattering2D
 # from einops.layers.torch import Rearrange
-from pytorch_wavelets import ScatLayer
+from pytorch_wavelets import ScatLayer, DWTForward, DWTInverse
 
 
 ScatFormer_width = {
@@ -165,21 +165,23 @@ class Attention4D(torch.nn.Module):
 
 
 def stem(in_chs, out_chs, act_layer=nn.ReLU):
+    hidden_dim = 7 * out_chs // 2
     return nn.Sequential(
         nn.Conv2d(in_chs, out_chs // 2, kernel_size=3, stride=1, padding=1),
         nn.BatchNorm2d(out_chs // 2),
         act_layer(),
-        ScatLayer(biort='near_sym_b'),
+        ScatLayer(biort='near_sym_b_bp', mode="zero"),
         # Scattering2D(J=1, L=4, shape=(224, 224)),
         # Rearrange('b c x h w -> b (c x) h w'),
-        nn.Conv2d(7 * out_chs // 2, out_chs, kernel_size=3, stride=1, padding=1),
-        nn.BatchNorm2d(out_chs),
+        nn.Conv2d(hidden_dim, hidden_dim, kernel_size=3, stride=1, padding=1),
+        nn.BatchNorm2d(hidden_dim),
         act_layer(),
-        ScatLayer(biort='near_sym_b'),
+        ScatLayer(biort='near_sym_b_bp', mode="zero"),
         # Scattering2D(J=1, L=4, shape=(112, 112)),
         # Rearrange('b c x h w -> b (c x) h w'),
-        nn.Conv2d(7 * out_chs, out_chs, kernel_size=1),
+        nn.Conv2d(7 * hidden_dim, out_chs, kernel_size=1),
         nn.BatchNorm2d(out_chs),
+        act_layer()
     )
 
 
@@ -322,7 +324,6 @@ class Embedding(nn.Module):
                 nn.BatchNorm2d(embed_dim)
             )
         elif self.asub:
-            # print("ASUB")
             self.attn = attn_block(dim=in_chans, out_dim=embed_dim,
                                    resolution=resolution, act_layer=act_layer)
             patch_size = to_2tuple(patch_size)
@@ -332,17 +333,17 @@ class Embedding(nn.Module):
                                   stride=stride, padding=padding)
             self.bn = norm_layer(embed_dim) if norm_layer else nn.Identity()
         else:
-            # print("ELSE")
-            patch_size = to_2tuple(patch_size)
-            stride = to_2tuple(stride)
-            padding = to_2tuple(padding)
+            # patch_size = to_2tuple(patch_size)
+            # stride = to_2tuple(stride)
+            # padding = to_2tuple(padding)
             # self.proj = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size,
             #                       stride=stride, padding=padding)
 
             self.proj = nn.Sequential(
                 # Scattering2D(J=1, L=4, shape=(resolution, resolution)),
                 # Rearrange('b c x h w -> b (c x) h w'),
-                ScatLayer(biort='near_sym_b'),
+                ScatLayer(biort='near_sym_b_bp', mode="zero"),
+                nn.Conv2d(in_chans * 7, in_chans * 7, kernel_size=3, padding=padding, groups=7),
                 nn.Conv2d(in_chans * 7, embed_dim, kernel_size=1))
             self.norm = norm_layer(embed_dim) if norm_layer else nn.Identity()
 
@@ -479,26 +480,21 @@ def sformer_block(dim, index, layers,
         block_dpr = drop_path_rate * (
                 block_idx + sum(layers[:index])) / (sum(layers) - 1)
         mlp_ratio = e_ratios[str(index)][block_idx]
-
-
         if index >= 2 and block_idx > layers[index] - 1 - vit_num:
-        #   print("AttnFNN\t block_idx", block_idx)
-          if index == 2:
+            if index == 2:
                 stride = 2
-          else:
-              stride = None
-          blocks.append(AttnFFN(
-              dim, mlp_ratio=mlp_ratio,
-              act_layer=act_layer, norm_layer=norm_layer,
-              drop=drop_rate, drop_path=block_dpr,
-              use_layer_scale=use_layer_scale,
-              layer_scale_init_value=layer_scale_init_value,
-              resolution=resolution,
-              stride=stride,
-          ))
-          
+            else:
+                stride = None
+            blocks.append(AttnFFN(
+                dim, mlp_ratio=mlp_ratio,
+                act_layer=act_layer, norm_layer=norm_layer,
+                drop=drop_rate, drop_path=block_dpr,
+                use_layer_scale=use_layer_scale,
+                layer_scale_init_value=layer_scale_init_value,
+                resolution=resolution,
+                stride=stride,
+            ))
         else:
-            # print("FNN\t block_idx", block_idx)
             blocks.append(FFN(
                 dim, pool_size=pool_size, mlp_ratio=mlp_ratio,
                 act_layer=act_layer,
@@ -506,7 +502,6 @@ def sformer_block(dim, index, layers,
                 use_layer_scale=use_layer_scale,
                 layer_scale_init_value=layer_scale_init_value,
             ))
-
     blocks = nn.Sequential(*blocks)
     return blocks
 
@@ -514,7 +509,6 @@ def sformer_block(dim, index, layers,
 class ScatFormer(nn.Module):
     def __init__(self, layers, embed_dims=None,
                  mlp_ratios=4, downsamples=None,
-                #  scat_scale=2, scat_angels=4,
                  pool_size=3,
                  norm_layer=nn.BatchNorm2d, act_layer=nn.GELU,
                  num_classes=100,
@@ -539,23 +533,21 @@ class ScatFormer(nn.Module):
 
         network = []
         for i in range(len(layers)):
-            # print(f"Layer: {i}")
-            sformer_block(embed_dims[i], i, layers,
-                          pool_size=pool_size, mlp_ratio=mlp_ratios,
-                          act_layer=act_layer, norm_layer=norm_layer,
-                          drop_rate=drop_rate,
-                          drop_path_rate=drop_path_rate,
-                          use_layer_scale=use_layer_scale,
-                          layer_scale_init_value=layer_scale_init_value,
-                          resolution=math.ceil(resolution / (2 ** (i + 2))),
-                          vit_num=vit_num,
-                          e_ratios=e_ratios)
-
+            stage = sformer_block(embed_dims[i], i, layers,
+                                  pool_size=pool_size, mlp_ratio=mlp_ratios,
+                                  act_layer=act_layer, norm_layer=norm_layer,
+                                  drop_rate=drop_rate,
+                                  drop_path_rate=drop_path_rate,
+                                  use_layer_scale=use_layer_scale,
+                                  layer_scale_init_value=layer_scale_init_value,
+                                  resolution=math.ceil(resolution / (2 ** (i + 2))),
+                                  vit_num=vit_num,
+                                  e_ratios=e_ratios)
+            network.append(stage)
             if i >= len(layers) - 1:
                 break
             if downsamples[i] or embed_dims[i] != embed_dims[i + 1]:
                 # downsampling between two stages
-                # print(f"downsamples: {math.ceil(resolution / (2 ** (i + 2)))}")
                 if i >= 2:
                     asub = True
                 else:
@@ -601,8 +593,7 @@ class ScatFormer(nn.Module):
         # load pre-trained model
         if self.fork_feat and (
                 self.init_cfg is not None or pretrained is not None):
-              pass
-            # self.init_weights()
+            self.init_weights()
 
     # init for classification
     def cls_init_weights(self, m):
@@ -611,12 +602,42 @@ class ScatFormer(nn.Module):
             if isinstance(m, nn.Linear) and m.bias is not None:
                 nn.init.constant_(m.bias, 0)
 
+    # init for mmdetection or mmsegmentation by loading
+    # imagenet pre-trained weights
+    def init_weights(self, pretrained=None):
+        logger = get_root_logger()
+        if self.init_cfg is None and pretrained is None:
+            logger.warn(f'No pre-trained weights for '
+                        f'{self.__class__.__name__}, '
+                        f'training start from scratch')
+            pass
+        else:
+            assert 'checkpoint' in self.init_cfg, f'Only support ' \
+                                                  f'specify `Pretrained` in ' \
+                                                  f'`init_cfg` in ' \
+                                                  f'{self.__class__.__name__} '
+            if self.init_cfg is not None:
+                ckpt_path = self.init_cfg['checkpoint']
+            elif pretrained is not None:
+                ckpt_path = pretrained
+
+            ckpt = _load_checkpoint(
+                ckpt_path, logger=logger, map_location='cpu')
+            if 'state_dict' in ckpt:
+                _state_dict = ckpt['state_dict']
+            elif 'model' in ckpt:
+                _state_dict = ckpt['model']
+            else:
+                _state_dict = ckpt
+
+            state_dict = _state_dict
+            missing_keys, unexpected_keys = \
+                self.load_state_dict(state_dict, False)
 
     def forward_tokens(self, x):
         outs = []
         for idx, block in enumerate(self.network):
             x = block(x)
-            # print(f"X shape: {x.shape}")
             if self.fork_feat and idx in self.out_indices:
                 norm_layer = getattr(self, f'norm{idx}')
                 x_out = norm_layer(x)
@@ -626,11 +647,8 @@ class ScatFormer(nn.Module):
         return x
 
     def forward(self, x):
-        # print(f"X shape: {x.shape}")
         x = self.patch_embed(x)
-        # print(f"X shape: {x.shape}")
         x = self.forward_tokens(x)
-        
         if self.fork_feat:
             # otuput features of four stages for dense prediction
             return x
