@@ -218,11 +218,11 @@ def stem(in_chs, out_chs, act_layer=nn.ReLU):
         nn.BatchNorm2d(out_chs // 2),
         act_layer(),
         ScatLayer(biort="near_sym_b_bp", mode="zero"),
-        nn.Conv2d(hidden_dim, hidden_dim, kernel_size=3, padding=1),
+        nn.Conv2d(hidden_dim, hidden_dim // 7, kernel_size=3, padding=1),
         nn.BatchNorm2d(hidden_dim),
         act_layer(),
         ScatLayer(biort="near_sym_b_bp", mode="zero"),
-        nn.Conv2d(7 * hidden_dim, out_chs, kernel_size=1),
+        nn.Conv2d(hidden_dim, out_chs, kernel_size=1),
         nn.BatchNorm2d(out_chs),
         act_layer(),
     )
@@ -444,7 +444,7 @@ class Embedding(nn.Module):
             #     padding=padding,
             # )
 
-            self.proj = nn.Sequential(
+            self.conv = nn.Sequential(
                 ScatLayer(biort="near_sym_b_bp", mode="zero"),
                 nn.Conv2d(
                     in_chans * 7, embed_dim, kernel_size=patch_size, padding=padding

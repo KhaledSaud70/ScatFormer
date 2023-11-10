@@ -19,6 +19,6 @@ python /root/workspace/ScatFormer/main.py --model $MODEL \
 --batch-size 128 \
 --epochs 50 \
 --distillation-type none \
-# --overfit_batches 0.1 \
+--overfit_batches 0.1 \
 
 
