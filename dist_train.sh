@@ -3,7 +3,7 @@
 MODEL=$1
 nGPUs=$2
 
-OUTPUT_DIR=/root/workspace/scatformer_s0_50d
+OUTPUT_DIR=/root/workspace/scatformer_s0_50d_dwtAttn
 
 # python -m torch.distributed.launch --nproc_per_node=$nGPUs --use_env /root/workspace/ScatFormer/main.py --model $MODEL \
 # --data-path /root/workspace/ImageNet100 \

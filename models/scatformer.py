@@ -96,6 +96,11 @@ class Attention4D(torch.nn.Module):
                 ),
                 nn.BatchNorm2d(dim),
             )
+            # self.stride_conv = nn.Sequential(
+            #     nn.Conv2d(dim, dim // 4, kernel_size=1),
+            #     nn.BatchNorm2d(dim // 4),
+            #     DWTForward(wave='haar')
+            # )
             self.upsample = nn.Upsample(scale_factor=stride, mode="bilinear")
         else:
             self.resolution = resolution
@@ -218,11 +223,11 @@ def stem(in_chs, out_chs, act_layer=nn.ReLU):
         nn.BatchNorm2d(out_chs // 2),
         act_layer(),
         ScatLayer(biort="near_sym_b_bp", mode="zero"),
-        nn.Conv2d(hidden_dim, hidden_dim // 7, kernel_size=3, padding=1),
+        nn.Conv2d(hidden_dim, hidden_dim, kernel_size=3, padding=1),
         nn.BatchNorm2d(hidden_dim),
         act_layer(),
         ScatLayer(biort="near_sym_b_bp", mode="zero"),
-        nn.Conv2d(hidden_dim, out_chs, kernel_size=1),
+        nn.Conv2d(7 * hidden_dim, out_chs, kernel_size=1),
         nn.BatchNorm2d(out_chs),
         act_layer(),
     )

@@ -2,7 +2,7 @@ import torch.nn as nn
 import pywt
 import pytorch_wavelets.dwt.lowlevel as lowlevel
 import torch
-
+from einops import rearrange
 
 class DWTForward(nn.Module):
     """ Performs a 2d DWT Forward decomposition of an image
@@ -71,7 +71,10 @@ class DWTForward(nn.Module):
                 ll, self.h0_col, self.h1_col, self.h0_row, self.h1_row, mode)
             yh.append(high)
 
-        return ll, yh
+        yh = rearrange(yh[0], 'n c x h w-> n (c x) h w')
+        x_out = torch.cat((ll, yh), dim=1)
+
+        return x_out
 
 
 class DWTInverse(nn.Module):

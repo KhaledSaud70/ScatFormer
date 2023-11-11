@@ -402,17 +402,17 @@ def main(args):
     num_tasks = utils.get_world_size()
     global_rank = utils.get_rank()
 
-    # assert args.overfit_batches <= 1.0
-    # subset_size = int(len(dataset_train) * args.overfit_batches)
-    # sampler_train = torch.utils.data.SubsetRandomSampler(range(subset_size))
-    if args.repeated_aug:
-        sampler_train = RASampler(
-            dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True
-        )
-    else:
-        sampler_train = torch.utils.data.DistributedSampler(
-            dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True
-        )
+    assert args.overfit_batches <= 1.0
+    subset_size = int(len(dataset_train) * args.overfit_batches)
+    sampler_train = torch.utils.data.SubsetRandomSampler(range(subset_size))
+    # if args.repeated_aug:
+    #     sampler_train = RASampler(
+    #         dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True
+    #     )
+    # else:
+    #     sampler_train = torch.utils.data.DistributedSampler(
+    #         dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True
+    #     )
     if args.dist_eval:
         if len(dataset_val) % num_tasks != 0:
             print(
@@ -616,24 +616,24 @@ def main(args):
         )
 
         lr_scheduler.step(epoch)
-        if args.output_dir:
-            checkpoint_paths = [output_dir / "checkpoint.pth"]
-            for checkpoint_path in checkpoint_paths:
-                utils.save_on_master(
-                    {
-                        "model": model_without_ddp.state_dict(),
-                        "optimizer": optimizer.state_dict(),
-                        "lr_scheduler": lr_scheduler.state_dict(),
-                        "epoch": epoch,
-                        "model_ema": get_state_dict(model_ema),
-                        "scaler": loss_scaler.state_dict(),
-                        "args": args,
-                    },
-                    checkpoint_path,
-                )
+        # if args.output_dir:
+        #     checkpoint_paths = [output_dir / "checkpoint.pth"]
+        #     for checkpoint_path in checkpoint_paths:
+        #         utils.save_on_master(
+        #             {
+        #                 "model": model_without_ddp.state_dict(),
+        #                 "optimizer": optimizer.state_dict(),
+        #                 "lr_scheduler": lr_scheduler.state_dict(),
+        #                 "epoch": epoch,
+        #                 "model_ema": get_state_dict(model_ema),
+        #                 "scaler": loss_scaler.state_dict(),
+        #                 "args": args,
+        #             },
+        #             checkpoint_path,
+        #         )
 
         if epoch % 4 == 3:
-            test_stats = evaluate(data_loader_val, model, device)
+            test_stats = evaluate(data_loader_train, model, device)
             print(
                 f"Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%"
             )
