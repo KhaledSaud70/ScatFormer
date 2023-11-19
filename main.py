@@ -292,6 +292,9 @@ def main(args):
                        for p in model.parameters() if p.requires_grad)
     print('number of params:', n_parameters)
 
+    flops_count, params_count = get_model_complexity_info(model, (3, 224, 224), as_strings=True, print_per_layer_stat=False, verbose=False)
+    print(f'Model %s created, flops_count: %s, param count: %s' % (args.model, flops_count, params_count))
+
     # better not to scale up lr for AdamW optimizer
     # linear_scaled_lr = args.lr + 5e-4 * args.batch_size * utils.get_world_size() / 1024.0
     linear_scaled_lr = args.lr * args.batch_size * utils.get_world_size() / 1024.0
