@@ -418,9 +418,20 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(
-        'EfficientFormer training and evaluation script', parents=[get_args_parser()])
-    args = parser.parse_args()
-    if args.output_dir:
-        Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-    main(args)
+    # parser = argparse.ArgumentParser(
+    #     'EfficientFormer training and evaluation script', parents=[get_args_parser()])
+    # args = parser.parse_args()
+    # if args.output_dir:
+    #     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+    # main(args)
+
+    model = create_model(
+    "efficientformerv2_l",
+    num_classes=100,
+    distillation=False,
+    pretrained=False,
+    fuse=False)
+
+    print(model(torch.randn(1, 3, 224, 224)).shape)
+    flops_count, params_count = get_model_complexity_info(model, (3, 224, 224), as_strings=True, print_per_layer_stat=False, verbose=False)
+    print(f'Model %s created, flops_count: %s, param count: %s' % ("ScatFormer", flops_count, params_count))
