@@ -17,13 +17,19 @@ from einops import rearrange
 from pytorch_wavelets import ScatLayer, DTCWTForward, DTCWTInverse
 
 
-ScatFormer_width = {
-    "L": [40, 80, 192, 384],  # 26m 83.3% 6attn
-    "S2": [32, 64, 144, 288],  # 12m 81.6% 4attn dp0.02
-    "S1": [32, 48, 120, 224],  # 6.1m 79.0
-    "S0": [32, 48, 96, 176],  # 75.0 75.7
-}
+# ScatFormer_width = {
+#     "L": [40, 80, 192, 384],  # 26m 83.3% 6attn
+#     "S2": [32, 64, 144, 288],  # 12m 81.6% 4attn dp0.02
+#     "S1": [32, 48, 120, 224],  # 6.1m 79.0
+#     "S0": [32, 48, 96, 176],  # 75.0 75.7
+# }
 
+ScatFormer_width = {
+    "L": [160, 224, 392, 910],  # 35m, 2.55 GMac, 6attn
+    "S2": None,  
+    "S1": [128, 175, 301, 700],  # 6.0m, 0.56 GMac
+    "S0": None, 
+}
 
 ScatFormer_depth = {
     "L": [5, 5, 15, 10],  # 26m 83.3%
@@ -32,37 +38,39 @@ ScatFormer_depth = {
     "S0": [2, 2, 6, 4],  # 75.7
 }
 
-# 26m
-expansion_ratios_L = {
-    "0": [4, 4, 4, 4, 4],
-    "1": [4, 4, 4, 4, 4],
-    "2": [4, 4, 4, 4, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4],
-    "3": [4, 4, 4, 3, 3, 3, 3, 4, 4, 4],
-}
+reduction_ratios = [5, 4, 3]
 
-# 12m
-expansion_ratios_S2 = {
-    "0": [4, 4, 4, 4],
-    "1": [4, 4, 4, 4],
-    "2": [4, 4, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4],
-    "3": [4, 4, 3, 3, 3, 3, 4, 4],
-}
+# # 26m
+# expansion_ratios_L = {
+#     "0": [4, 4, 4, 4, 4],
+#     "1": [4, 4, 4, 4, 4],
+#     "2": [4, 4, 4, 4, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4],
+#     "3": [4, 4, 4, 3, 3, 3, 3, 4, 4, 4],
+# }
 
-# 6.1m
-expansion_ratios_S1 = {
-    "0": [4, 4, 4],
-    "1": [4, 4, 4],
-    "2": [4, 4, 3, 3, 3, 3, 4, 4, 4],
-    "3": [4, 4, 3, 3, 4, 4],
-}
+# # 12m
+# expansion_ratios_S2 = {
+#     "0": [4, 4, 4, 4],
+#     "1": [4, 4, 4, 4],
+#     "2": [4, 4, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4],
+#     "3": [4, 4, 3, 3, 3, 3, 4, 4],
+# }
 
-# 3.5m
-expansion_ratios_S0 = {
-    "0": [4, 4],
-    "1": [4, 4],
-    "2": [4, 3, 3, 3, 4, 4],
-    "3": [4, 3, 3, 4],
-}
+# # 6.1m
+# expansion_ratios_S1 = {
+#     "0": [4, 4, 4],
+#     "1": [4, 4, 4],
+#     "2": [4, 4, 3, 3, 3, 3, 4, 4, 4],
+#     "3": [4, 4, 3, 3, 4, 4],
+# }
+
+# # 3.5m
+# expansion_ratios_S0 = {
+#     "0": [4, 4],
+#     "1": [4, 4],
+#     "2": [4, 3, 3, 3, 4, 4],
+#     "3": [4, 3, 3, 4],
+# }
 
 
 class Attention4D(torch.nn.Module):
@@ -165,8 +173,8 @@ class Attention4D(torch.nn.Module):
         return out
 
 
-def stem(in_chs, out_chs, reduction_ratio=4, act_layer=nn.ReLU):
-    hidden_dim = 3 * 7
+def stem(in_chs, out_chs, act_layer=nn.ReLU):
+    hidden_dim = in_chs * 7
     return nn.Sequential(
         ScatLayer(biort="near_sym_b", mode="zero"),
         nn.Conv2d(hidden_dim, hidden_dim, kernel_size=3, padding=1),
@@ -316,59 +324,40 @@ class Embedding(nn.Module):
         self.light = light
         self.asub = asub
         
-        if self.light:
-            self.new_proj = nn.Sequential(
-                nn.Conv2d(in_chans, in_chans, kernel_size=3, stride=2, padding=1, groups=in_chans),
-                nn.BatchNorm2d(in_chans),
-                nn.Hardswish(),
-                nn.Conv2d(in_chans, embed_dim, kernel_size=1, stride=1, padding=0),
-                nn.BatchNorm2d(embed_dim),
-            )
-            self.skip = nn.Sequential(
-                nn.Conv2d(in_chans, embed_dim, kernel_size=1, stride=2, padding=0),
-                nn.BatchNorm2d(embed_dim)
-            )
-        elif self.asub:
-            self.attn = attn_block(dim=in_chans, out_dim=embed_dim,
+        if self.asub:
+            self.attn = attn_block(dim=in_chans, out_dim=7 * embed_dim,
                                    resolution=resolution, act_layer=act_layer)
             patch_size = to_2tuple(patch_size)
             stride = to_2tuple(stride)
             padding = to_2tuple(padding)
-            # self.conv = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size,
-            #                       stride=stride, padding=padding)
 
             self.conv = nn.Sequential(
-                ScatLayer(biort="near_sym_b", mode="zero"),
-                nn.Conv2d(in_chans * 7 , embed_dim, 1),
-                
+                nn.Conv2d(in_chans , embed_dim, 1),
+                ScatLayer(biort="near_sym_b", mode="zero")
             )
 
-            self.bn = norm_layer(embed_dim) if norm_layer else nn.Identity()
+            self.bn = norm_layer(7 * embed_dim) if norm_layer else nn.Identity()
         else:
             patch_size = to_2tuple(patch_size)
             stride = to_2tuple(stride)
             padding = to_2tuple(padding)
-            # self.proj = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size,
-            #                       stride=stride, padding=padding)
 
             self.proj = nn.Sequential(
-                ScatLayer(biort="near_sym_b", mode="zero"),
-                nn.Conv2d(in_chans * 7 , embed_dim, 1),
-                
+                nn.Conv2d(in_chans , embed_dim, 1),
+                ScatLayer(biort="near_sym_b", mode="zero")
             )
 
-            self.norm = norm_layer(embed_dim) if norm_layer else nn.Identity()
+            self.norm = norm_layer(7 * embed_dim) if norm_layer else nn.Identity()
 
     def forward(self, x):
-        if self.light:
-            out = self.new_proj(x) + self.skip(x)
-        elif self.asub:
+        if self.asub:
             out_conv = self.conv(x)
             out_conv = self.bn(out_conv)
             out = self.attn(x) + out_conv
         else:
             x = self.proj(x)
             out = self.norm(x)
+
         return out
 
 
@@ -384,9 +373,9 @@ class Mlp(nn.Module):
         out_features = out_features or in_features
         hidden_features = hidden_features or in_features
         self.mid_conv = mid_conv
-        self.fc1 = nn.Conv2d(in_features, hidden_features, 1)
+        # self.fc1 = nn.Conv2d(in_features, hidden_features, 1)
         self.act = act_layer()
-        self.fc2 = nn.Conv2d(hidden_features, out_features, 1)
+        # self.fc2 = nn.Conv2d(hidden_features, out_features, 1)
         self.drop = nn.Dropout(drop)
         self.apply(self._init_weights)
 
@@ -395,8 +384,8 @@ class Mlp(nn.Module):
                                  groups=hidden_features)
             self.mid_norm = nn.BatchNorm2d(hidden_features)
 
-        self.norm1 = nn.BatchNorm2d(hidden_features)
-        self.norm2 = nn.BatchNorm2d(out_features)
+        # self.norm1 = nn.BatchNorm2d(hidden_features)
+        # self.norm2 = nn.BatchNorm2d(out_features)
 
     def _init_weights(self, m):
         if isinstance(m, nn.Conv2d):
@@ -405,9 +394,9 @@ class Mlp(nn.Module):
                 nn.init.constant_(m.bias, 0)
 
     def forward(self, x):
-        x = self.fc1(x)
-        x = self.norm1(x)
-        x = self.act(x)
+        # x = self.fc1(x)
+        # x = self.norm1(x)
+        # x = self.act(x)
 
         if self.mid_conv:
             x_mid = self.mid(x)
@@ -415,10 +404,10 @@ class Mlp(nn.Module):
             x = self.act(x_mid)
         x = self.drop(x)
 
-        x = self.fc2(x)
-        x = self.norm2(x)
+        # x = self.fc2(x)
+        # x = self.norm2(x)
 
-        x = self.drop(x)
+        # x = self.drop(x)
         return x
 
 
@@ -432,8 +421,7 @@ class AttnFFN(nn.Module):
         super().__init__()
 
         self.token_mixer = Attention4D(dim, resolution=resolution, act_layer=act_layer, stride=stride)
-        mlp_hidden_dim = int(dim * mlp_ratio)
-        self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim,
+        self.mlp = Mlp(in_features=dim,
                        act_layer=act_layer, drop=drop, mid_conv=True)
 
         self.drop_path = DropPath(drop_path) if drop_path > 0. \
@@ -463,8 +451,7 @@ class FFN(nn.Module):
                  use_layer_scale=True, layer_scale_init_value=1e-5):
         super().__init__()
 
-        mlp_hidden_dim = int(dim * mlp_ratio)
-        self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim,
+        self.mlp = Mlp(in_features=dim,
                        act_layer=act_layer, drop=drop, mid_conv=True)
 
         self.drop_path = DropPath(drop_path) if drop_path > 0. \
@@ -483,22 +470,22 @@ class FFN(nn.Module):
 
 
 def sformer_block(dim, index, layers,
-                  pool_size=3, mlp_ratio=4.,
+                  pool_size=3,
                   act_layer=nn.GELU, norm_layer=nn.LayerNorm,
                   drop_rate=.0, drop_path_rate=0.,
-                  use_layer_scale=True, layer_scale_init_value=1e-5, vit_num=1, resolution=7, e_ratios=None):
+                  use_layer_scale=True, layer_scale_init_value=1e-5, vit_num=1, resolution=7):
     blocks = []
     for block_idx in range(layers[index]):
         block_dpr = drop_path_rate * (
                 block_idx + sum(layers[:index])) / (sum(layers) - 1)
-        mlp_ratio = e_ratios[str(index)][block_idx]
+
         if index >= 2 and block_idx > layers[index] - 1 - vit_num:
             if index == 2:
                 stride = 2
             else:
                 stride = None
             blocks.append(AttnFFN(
-                dim, mlp_ratio=mlp_ratio,
+                dim,
                 act_layer=act_layer, norm_layer=norm_layer,
                 drop=drop_rate, drop_path=block_dpr,
                 use_layer_scale=use_layer_scale,
@@ -508,7 +495,7 @@ def sformer_block(dim, index, layers,
             ))
         else:
             blocks.append(FFN(
-                dim, pool_size=pool_size, mlp_ratio=mlp_ratio,
+                dim, pool_size=pool_size,
                 act_layer=act_layer,
                 drop=drop_rate, drop_path=block_dpr,
                 use_layer_scale=use_layer_scale,
@@ -520,8 +507,7 @@ def sformer_block(dim, index, layers,
 
 class ScatFormer(nn.Module):
     def __init__(self, layers, embed_dims=None,
-                 mlp_ratios=4, downsamples=None,
-                 pool_size=3,
+                 downsamples=None, pool_size=3,
                  norm_layer=nn.BatchNorm2d, act_layer=nn.GELU,
                  num_classes=1000,
                  down_patch_size=3, down_stride=2, down_pad=1,
@@ -533,7 +519,7 @@ class ScatFormer(nn.Module):
                  vit_num=0,
                  distillation=True,
                  resolution=224,
-                 e_ratios=expansion_ratios_L,
+                 r_ratios=reduction_ratios,
                  **kwargs):
         super().__init__()
 
@@ -546,15 +532,14 @@ class ScatFormer(nn.Module):
         network = []
         for i in range(len(layers)):
             stage = sformer_block(embed_dims[i], i, layers,
-                                  pool_size=pool_size, mlp_ratio=mlp_ratios,
+                                  pool_size=pool_size,
                                   act_layer=act_layer, norm_layer=norm_layer,
                                   drop_rate=drop_rate,
                                   drop_path_rate=drop_path_rate,
                                   use_layer_scale=use_layer_scale,
                                   layer_scale_init_value=layer_scale_init_value,
                                   resolution=math.ceil(resolution / (2 ** (i + 2))),
-                                  vit_num=vit_num,
-                                  e_ratios=e_ratios)
+                                  vit_num=vit_num)
             network.append(stage)
             if i >= len(layers) - 1:
                 break
@@ -568,7 +553,7 @@ class ScatFormer(nn.Module):
                     Embedding(
                         patch_size=down_patch_size, stride=down_stride,
                         padding=down_pad,
-                        in_chans=embed_dims[i], embed_dim=embed_dims[i + 1],
+                        in_chans=embed_dims[i], embed_dim=embed_dims[i] // r_ratios[i],
                         resolution=math.ceil(resolution / (2 ** (i + 2))),
                         asub=asub,
                         act_layer=act_layer, norm_layer=norm_layer,
@@ -699,7 +684,7 @@ def scatformer_s0(pretrained=False, **kwargs):
         downsamples=[True, True, True, True, True],
         vit_num=2, #2
         drop_path_rate=0.0,
-        e_ratios=expansion_ratios_S0,
+        r_ratios=reduction_ratios,
         **kwargs,
     )
     model.default_cfg = _cfg(crop_pct=0.9)
@@ -714,7 +699,7 @@ def scatformer_s1(pretrained=False, **kwargs):
         downsamples=[True, True, True, True],
         vit_num=2,
         drop_path_rate=0.0,
-        e_ratios=expansion_ratios_S1,
+        r_ratios=reduction_ratios,
         **kwargs,
     )
     model.default_cfg = _cfg(crop_pct=0.9)
@@ -729,7 +714,7 @@ def scatformer_s2(pretrained=False, **kwargs):
         downsamples=[True, True, True, True],
         vit_num=4,
         drop_path_rate=0.02,
-        e_ratios=expansion_ratios_S2,
+        r_ratios=reduction_ratios,
         **kwargs,
     )
     model.default_cfg = _cfg(crop_pct=0.9)
@@ -744,7 +729,7 @@ def scatformer_l(pretrained=False, **kwargs):
         downsamples=[True, True, True, True],
         vit_num=10, #6
         drop_path_rate=0.1,
-        e_ratios=expansion_ratios_L,
+        r_ratios=reduction_ratios,
         **kwargs,
     )
     model.default_cfg = _cfg(crop_pct=0.9)
