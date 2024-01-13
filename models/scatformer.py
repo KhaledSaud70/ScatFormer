@@ -166,11 +166,8 @@ class Attention4D(torch.nn.Module):
 
 
 def stem(in_chs, out_chs, reduction_ratio=4, act_layer=nn.ReLU):
-    hidden_dim = (out_chs // reduction_ratio) * 7
+    hidden_dim = in_chs * 7
     return nn.Sequential(
-        nn.Conv2d(in_chs, out_chs // reduction_ratio, kernel_size=3, padding=1),
-        nn.BatchNorm2d(out_chs // reduction_ratio),
-        act_layer(),
         ScatLayer(biort="near_sym_b", mode="zero"),
         nn.Conv2d(hidden_dim, hidden_dim, kernel_size=3, padding=1),
         nn.BatchNorm2d(hidden_dim),
