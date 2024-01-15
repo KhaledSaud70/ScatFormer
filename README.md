@@ -8,5 +8,5 @@ scp PATH/TO/kaggle.json root@[INPUT REMOTE INSTANCE IP ADDRESS]:/root/.kaggle
 
 ## Run remote_setup.sh in the remote instance
 bash ScatFormer/remote_setup.sh
-## To start training run
-bash dist_train.sh [model_name] [number of GPU]
+## To trian scatformer_s0 with 1 GPU
+bash dist_train.sh scatformer_s0 1
