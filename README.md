@@ -1,4 +1,4 @@
-## run the following commands in the remote instance
+## Run the following commands in the remote instance
 mkdir /root/.kaggle && mkdir workspace && cd workspace
 git clone https://github.com/KhaledSaud70/ScatFormer.git
 
