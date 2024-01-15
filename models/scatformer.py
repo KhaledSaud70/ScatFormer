@@ -26,9 +26,9 @@ from pytorch_wavelets import ScatLayer, DTCWTForward, DTCWTInverse
 
 ScatFormer_width = {
     "L": [160, 224, 392, 910],  # 35m, 2.55 GMac, 6attn
-    "S2": None,  
-    "S1": [128, 175, 301, 700],  # 6.0m, 0.56 GMac
-    "S0": None, 
+    "S2": None,  # TO DO
+    "S1": [128, 175, 301, 700], # 6.0m, 0.56 GMac
+    "S0": [128, 175, 245, 567], # 4.9m, 0.48 GMac
 }
 
 ScatFormer_depth = {
@@ -38,7 +38,13 @@ ScatFormer_depth = {
     "S0": [2, 2, 6, 4],  # 75.7
 }
 
-reduction_ratios = [5, 4, 3]
+reduction_ratios = {
+    "L": [5, 4, 3],  # 26m 83.3%
+    "S2": None,  # 12m
+    "S1": [5, 4, 3],  # 79.0
+    "S0": [5, 5, 3],  # 75.7
+}
+
 
 # # 26m
 # expansion_ratios_L = {
@@ -684,7 +690,7 @@ def scatformer_s0(pretrained=False, **kwargs):
         downsamples=[True, True, True, True, True],
         vit_num=2, #2
         drop_path_rate=0.0,
-        r_ratios=reduction_ratios,
+        r_ratios=reduction_ratios["S0"],
         **kwargs,
     )
     model.default_cfg = _cfg(crop_pct=0.9)
@@ -699,7 +705,7 @@ def scatformer_s1(pretrained=False, **kwargs):
         downsamples=[True, True, True, True],
         vit_num=2,
         drop_path_rate=0.0,
-        r_ratios=reduction_ratios,
+        r_ratios=reduction_ratios["S1"],
         **kwargs,
     )
     model.default_cfg = _cfg(crop_pct=0.9)
@@ -714,7 +720,7 @@ def scatformer_s2(pretrained=False, **kwargs):
         downsamples=[True, True, True, True],
         vit_num=4,
         drop_path_rate=0.02,
-        r_ratios=reduction_ratios,
+        r_ratios=reduction_ratios["S2"],
         **kwargs,
     )
     model.default_cfg = _cfg(crop_pct=0.9)
@@ -729,7 +735,7 @@ def scatformer_l(pretrained=False, **kwargs):
         downsamples=[True, True, True, True],
         vit_num=10, #6
         drop_path_rate=0.1,
-        r_ratios=reduction_ratios,
+        r_ratios=reduction_ratios["L"],
         **kwargs,
     )
     model.default_cfg = _cfg(crop_pct=0.9)
