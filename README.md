@@ -6,7 +6,7 @@ git clone https://github.com/KhaledSaud70/ScatFormer.git
 ## Run the following in your local machine:
 scp PATH/TO/kaggle.json root@[INPUT REMOTE INSTANCE IP ADDRESS]:/root/.kaggle
 
-## Run remote_setup.py in the remote instance
+## Run remote_setup.sh in the remote instance
 bash ScatFormer/remote_setup.sh
 ## To start training run
 bash dist_train.sh [model_name] [number of GPU]
