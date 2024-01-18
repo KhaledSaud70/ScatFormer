@@ -426,12 +426,12 @@ if __name__ == '__main__':
     # main(args)
 
     model = create_model(
-    "scatformer_s0",
+    "scatformer_l",
     num_classes=100,
     distillation=False,
     pretrained=False,
     fuse=False)
 
-    print(model(torch.randn(1, 3, 224, 224)).shape)
+    print('Out shape', model(torch.randn(1, 3, 224, 224)).shape)
     flops_count, params_count = get_model_complexity_info(model, (3, 224, 224), as_strings=True, print_per_layer_stat=False, verbose=False)
     print(f'Model %s created, flops_count: %s, param count: %s' % ("ScatFormer", flops_count, params_count))

@@ -21,7 +21,8 @@ ScatFormer_width = {
     "L": [40, 80, 192, 384],  # 26m 83.3% 6attn
     "S2": [32, 64, 144, 288],  # 12m 81.6% 4attn dp0.02
     "S1": [32, 48, 120, 224],  # 6.1m 79.0
-    "S0": [32, 48, 96, 176],  # 75.0 75.7
+    # "S0": [32, 48, 96, 176],  # 75.0 75.7
+    "S0": [32, 48, 176],  # 75.0 75.7
 }
 
 
@@ -29,7 +30,8 @@ ScatFormer_depth = {
     "L": [5, 5, 15, 10],  # 26m 83.3%
     "S2": [4, 4, 12, 8],  # 12m
     "S1": [3, 3, 9, 6],  # 79.0
-    "S0": [2, 2, 6, 4],  # 75.7
+    # "S0": [2, 2, 6, 4],  # 75.7
+    "S0": [2, 2, 10],  # 75.7
 }
 
 # 26m
@@ -57,11 +59,18 @@ expansion_ratios_S1 = {
 }
 
 # 3.5m
+# expansion_ratios_S0 = {
+#     "0": [4, 4],
+#     "1": [4, 4],
+#     "2": [4, 3, 3, 3, 4, 4],
+#     "3": [4, 3, 3, 4],
+# }
+
 expansion_ratios_S0 = {
     "0": [4, 4],
     "1": [4, 4],
-    "2": [4, 3, 3, 3, 4, 4],
-    "3": [4, 3, 3, 4],
+    "2": [4, 3, 3, 3, 3, 3, 4, 4, 4, 4],
+    # "3": [4, 3, 3, 4],
 }
 
 
@@ -204,6 +213,7 @@ class Attention4DDownsample(torch.nn.Module):
                  resolution=7,
                  out_dim=None,
                  act_layer=None,
+                 stride=None,
                  ):
         super().__init__()
 
@@ -237,6 +247,8 @@ class Attention4DDownsample(torch.nn.Module):
         self.v_local = nn.Sequential(nn.Conv2d(self.num_heads * self.d, self.num_heads * self.d,
                                                kernel_size=3, stride=2, padding=1, groups=self.num_heads * self.d),
                                      nn.BatchNorm2d(self.num_heads * self.d), )
+        
+        self.upsample = nn.Upsample(scale_factor=stride, mode='bilinear') if stride else None
 
         self.proj = nn.Sequential(
             act_layer(),
@@ -292,7 +304,10 @@ class Attention4DDownsample(torch.nn.Module):
         attn = attn.softmax(dim=-1)
         x = (attn @ v).transpose(2, 3)
         out = x.reshape(B, self.dh, self.resolution2, self.resolution2) + v_local
-
+        # print(f"Before upsample, {out.shape}")
+        if self.upsample is not None:
+            out = self.upsample(out)
+        # print(f"After upsample, {out.shape}")
         out = self.proj(out)
         return out
 
@@ -316,32 +331,20 @@ class Embedding(nn.Module):
         self.light = light
         self.asub = asub
         
-        if self.light:
-            self.new_proj = nn.Sequential(
-                nn.Conv2d(in_chans, in_chans, kernel_size=3, stride=2, padding=1, groups=in_chans),
-                nn.BatchNorm2d(in_chans),
-                nn.Hardswish(),
-                nn.Conv2d(in_chans, embed_dim, kernel_size=1, stride=1, padding=0),
-                nn.BatchNorm2d(embed_dim),
-            )
-            self.skip = nn.Sequential(
-                nn.Conv2d(in_chans, embed_dim, kernel_size=1, stride=2, padding=0),
-                nn.BatchNorm2d(embed_dim)
-            )
-        elif self.asub:
+        if self.asub:
             self.attn = attn_block(dim=in_chans, out_dim=embed_dim,
                                    resolution=resolution, act_layer=act_layer)
             patch_size = to_2tuple(patch_size)
             stride = to_2tuple(stride)
             padding = to_2tuple(padding)
-            # self.conv = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size,
-            #                       stride=stride, padding=padding)
+            self.conv = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size,
+                                  stride=stride, padding=padding)
 
-            self.conv = nn.Sequential(
-                ScatLayer(biort="near_sym_b", mode="zero"),
-                nn.Conv2d(in_chans * 7 , embed_dim, 1),
+            # self.conv = nn.Sequential(
+            #     ScatLayer(biort="near_sym_b", mode="zero"),
+            #     nn.Conv2d(in_chans * 7 , embed_dim, 1),
                 
-            )
+            # )
 
             self.bn = norm_layer(embed_dim) if norm_layer else nn.Identity()
         else:
@@ -363,6 +366,7 @@ class Embedding(nn.Module):
         if self.light:
             out = self.new_proj(x) + self.skip(x)
         elif self.asub:
+            print("here")
             out_conv = self.conv(x)
             out_conv = self.bn(out_conv)
             out = self.attn(x) + out_conv
@@ -431,8 +435,8 @@ class AttnFFN(nn.Module):
 
         super().__init__()
 
-        self.token_mixer1 = Attention4D(dim, resolution=resolution, act_layer=act_layer, stride=stride)
-        self.token_mixer2 = Attention4DDownsample(dim, resolution=resolution, act_layer=act_layer, stride=stride)
+        self.token_mixer1 = Attention4D(dim // 2, resolution=resolution, act_layer=act_layer, stride=stride)
+        self.token_mixer2 = Attention4DDownsample(dim // 2, resolution=resolution, act_layer=act_layer, stride=stride)
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim,
                        act_layer=act_layer, drop=drop, mid_conv=True)
@@ -445,11 +449,18 @@ class AttnFFN(nn.Module):
                 layer_scale_init_value * torch.ones(dim).unsqueeze(-1).unsqueeze(-1), requires_grad=True)
             self.layer_scale_2 = nn.Parameter(
                 layer_scale_init_value * torch.ones(dim).unsqueeze(-1).unsqueeze(-1), requires_grad=True)
+    
+    def token_mixer(self, x):
+        print(f"X init, {x.shape}")
+        x1, x2 = x.chunk(chunks=2, dim=1)
+        x1 = self.token_mixer1(x1)
+        x2 = self.token_mixer2(x2)
+        print(x1.shape, x2.shape)
+        x = torch.cat((x1, x2), dim=1)
+        print("X shape", x.shape)
+        return x
 
     def forward(self, x):
-        print(x.shape)
-        x1, x2 = x.chunk(chunks=2, dim=1)
-        print(x1.shape, x2.shape)
         if self.use_layer_scale:
             x = x + self.drop_path(self.layer_scale_1 * self.token_mixer(x))
             x = x + self.drop_path(self.layer_scale_2 * self.mlp(x))
@@ -497,6 +508,7 @@ def sformer_block(dim, index, layers,
                 block_idx + sum(layers[:index])) / (sum(layers) - 1)
         mlp_ratio = e_ratios[str(index)][block_idx]
         if index >= 2 and block_idx > layers[index] - 1 - vit_num:
+            print("AttnFNN")
             if index == 2:
                 stride = 2
             else:
@@ -511,6 +523,7 @@ def sformer_block(dim, index, layers,
                 stride=stride,
             ))
         else:
+            print("FNN")
             blocks.append(FFN(
                 dim, pool_size=pool_size, mlp_ratio=mlp_ratio,
                 act_layer=act_layer,
@@ -549,6 +562,7 @@ class ScatFormer(nn.Module):
 
         network = []
         for i in range(len(layers)):
+            print("I", i)
             stage = sformer_block(embed_dims[i], i, layers,
                                   pool_size=pool_size, mlp_ratio=mlp_ratios,
                                   act_layer=act_layer, norm_layer=norm_layer,
@@ -565,6 +579,7 @@ class ScatFormer(nn.Module):
             if downsamples[i] or embed_dims[i] != embed_dims[i + 1]:
                 # downsampling between two stages
                 if i >= 2:
+                    print('ASUB')
                     asub = True
                 else:
                     asub = False
@@ -701,7 +716,7 @@ def scatformer_s0(pretrained=False, **kwargs):
         layers=ScatFormer_depth["S0"],
         embed_dims=ScatFormer_width["S0"],
         downsamples=[True, True, True, True, True],
-        vit_num=2, #2
+        vit_num=4, #2
         drop_path_rate=0.0,
         e_ratios=expansion_ratios_S0,
         **kwargs,
@@ -746,7 +761,7 @@ def scatformer_l(pretrained=False, **kwargs):
         layers=ScatFormer_depth["L"],
         embed_dims=ScatFormer_width["L"],
         downsamples=[True, True, True, True],
-        vit_num=10, #6
+        vit_num=6, #6
         drop_path_rate=0.1,
         e_ratios=expansion_ratios_L,
         **kwargs,
