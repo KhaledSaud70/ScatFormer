@@ -18,7 +18,8 @@ from pytorch_wavelets import ScatLayer, DTCWTForward, DTCWTInverse
 
 
 ScatFormer_width = {
-    "L": [40, 80, 192, 384],  # 26m 83.3% 6attn
+    "L": [40, 80, 384],
+    # "L": [40, 80, 192, 384],  # 26m 83.3% 6attn
     "S2": [32, 64, 144, 288],  # 12m 81.6% 4attn dp0.02
     "S1": [32, 48, 120, 224],  # 6.1m 79.0
     # "S0": [32, 48, 96, 176],  # 75.0 75.7
@@ -27,20 +28,29 @@ ScatFormer_width = {
 
 
 ScatFormer_depth = {
-    "L": [5, 5, 15, 10],  # 26m 83.3%
+    "L": [5, 5, 15],
+    # "L": [5, 5, 15, 10],  # 26m 83.3%
     "S2": [4, 4, 12, 8],  # 12m
     "S1": [3, 3, 9, 6],  # 79.0
     # "S0": [2, 2, 6, 4],  # 75.7
-    "S0": [2, 2, 10],  # 75.7
+    "S0": [2, 2, 6],  # 75.7
 }
 
 # 26m
+# expansion_ratios_L = {
+#     "0": [4, 4, 4, 4, 4],
+#     "1": [4, 4, 4, 4, 4],
+#     "2": [4, 4, 4, 4, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4],
+#     "3": [4, 4, 4, 3, 3, 3, 3, 4, 4, 4],
+# }
+
 expansion_ratios_L = {
     "0": [4, 4, 4, 4, 4],
     "1": [4, 4, 4, 4, 4],
     "2": [4, 4, 4, 4, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4],
-    "3": [4, 4, 4, 3, 3, 3, 3, 4, 4, 4],
+    # "3": [4, 4, 4, 3, 3, 3, 3, 4, 4, 4],
 }
+
 
 # 12m
 expansion_ratios_S2 = {
@@ -69,7 +79,7 @@ expansion_ratios_S1 = {
 expansion_ratios_S0 = {
     "0": [4, 4],
     "1": [4, 4],
-    "2": [4, 3, 3, 3, 3, 3, 4, 4, 4, 4],
+    "2": [4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
     # "3": [4, 3, 3, 4],
 }
 
@@ -761,7 +771,7 @@ def scatformer_l(pretrained=False, **kwargs):
         layers=ScatFormer_depth["L"],
         embed_dims=ScatFormer_width["L"],
         downsamples=[True, True, True, True],
-        vit_num=6, #6
+        vit_num=12, #6
         drop_path_rate=0.1,
         e_ratios=expansion_ratios_L,
         **kwargs,
