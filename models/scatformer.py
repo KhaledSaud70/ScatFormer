@@ -165,7 +165,7 @@ class Attention4D(torch.nn.Module):
         return out
 
 
-def stem(in_chs, out_chs, reduction_ratio=4, act_layer=nn.ReLU):
+def stem(in_chs, out_chs, act_layer=nn.ReLU):
     hidden_dim = in_chs * 7
     return nn.Sequential(
         ScatLayer(biort="near_sym_b", mode="zero"),
@@ -431,7 +431,8 @@ class AttnFFN(nn.Module):
 
         super().__init__()
 
-        self.token_mixer = Attention4D(dim, resolution=resolution, act_layer=act_layer, stride=stride)
+        self.token_mixer1 = Attention4D(dim, resolution=resolution, act_layer=act_layer, stride=stride)
+        self.token_mixer2 = Attention4DDownsample(dim, resolution=resolution, act_layer=act_layer, stride=stride)
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim,
                        act_layer=act_layer, drop=drop, mid_conv=True)
@@ -446,6 +447,9 @@ class AttnFFN(nn.Module):
                 layer_scale_init_value * torch.ones(dim).unsqueeze(-1).unsqueeze(-1), requires_grad=True)
 
     def forward(self, x):
+        print(x.shape)
+        x1, x2 = x.chunk(chunks=2, dim=1)
+        print(x1.shape, x2.shape)
         if self.use_layer_scale:
             x = x + self.drop_path(self.layer_scale_1 * self.token_mixer(x))
             x = x + self.drop_path(self.layer_scale_2 * self.mlp(x))
