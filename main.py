@@ -426,7 +426,7 @@ if __name__ == '__main__':
     # main(args)
 
     model = create_model(
-    "scatformer_s0",
+    "scatformer_l",
     num_classes=100,
     distillation=False,
     pretrained=False,
