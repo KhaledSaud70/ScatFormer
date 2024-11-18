@@ -9,7 +9,7 @@ CHECKPOINT=$3
 # --data-path /path/to/imagenet \
 # --output_dir efficientformer_test
 
-python /root/workspace/ScatFormer/main.py --model $MODEL \
+python main.py --model $MODEL \
 --resume $CHECKPOINT --eval \
---data-path /root/workspace/ImageNet100 \
---output_dir /root/workspace/efficientformer_test
+--data-path path/to/ImageNet100 \
+--output_dir efficientformer_test
