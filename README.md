@@ -5,7 +5,7 @@
 </p>
 
 >[Enhancing Vision Transformers with Wavelet Scattering Networks](docs/ScatFormer.pdf)<br>
->[Khaled Almutairy](www.linkedin.com/in/khaledalmutairy)<sup>1</sup>, [Mamoun Alghaslan](www.linkedin.com/in/mamoun-alghaslan-96207188)<sup>1</sup>, [Saeed Anwar](https://scholar.google.com.au/citations?hl=en&user=vPJIHywAAAAJ&view_op=list_works&sortby=pubdate)<sup>1,2</sup> <br>
+>[Khaled Almutairy](https://www.linkedin.com/in/khaledalmutairy)<sup>1</sup>, [Mamoun Alghaslan](https://www.linkedin.com/in/mamoun-alghaslan-96207188/)<sup>1</sup>, [Saeed Anwar](https://scholar.google.com.au/citations?hl=en&user=vPJIHywAAAAJ&view_op=list_works&sortby=pubdate)<sup>1,2</sup> <br>
 <sup>1</sup>SDAIA-KFUPM Joint Research Center for Artificial Intelligence,  
 <sup>2</sup>Information and Computer Science, King Fahd University of Petroleum and Minerals, Saudi Arabia
 
@@ -49,14 +49,14 @@ The dataset should be organized as follows:
 
 To train the model on a single machine with multiple GPUs:
 ```
-sh dist_train.sh [model_variant] [num_gpus]
+bash dist_train.sh [model_variant] [num_gpus]
 ```
 
 ## Evaluation
 
 To evaluate the model:
 ```
-sh dist_test.sh [model_variant] [num_gpus] [checkpoint_path]
+bash dist_test.sh [model_variant] [num_gpus] [checkpoint_path]
 ```
 
 ## Model Variants
